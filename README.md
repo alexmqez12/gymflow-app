@@ -1,187 +1,261 @@
-# 🏋️ GymFlow - Sistema de Control de Aforo para Gimnasios
+# 🏋️ GymFlow
 
-## 📋 Descripción del Proyecto
+**Plataforma de gestión de aforo en tiempo real para gimnasios**
 
-**GymFlow** es una aplicación web full-stack que permite visualizar en tiempo real la capacidad y aforo de gimnasios cercanos. Los usuarios pueden ver cuántas personas hay en cada gimnasio para tomar decisiones informadas sobre cuándo ir a entrenar.
-
-### ✨ Características Implementadas (Hasta Ahora)
-
-- ✅ **Backend API** con NestJS + TypeScript
-- ✅ **Base de datos** PostgreSQL con Prisma ORM
-- ✅ **Frontend** con Next.js 14 + React + TypeScript
-- ✅ **API REST** para consultar gimnasios
-- ✅ **Cálculo de aforo** en tiempo real
-- ✅ **4 gimnasios de prueba** en Santiago, Chile
-
-### 🚧 Pendiente de Implementar
-
-- ⏳ Sistema de check-in/check-out
-- ⏳ WebSockets para actualizaciones en tiempo real
-- ⏳ Búsqueda de gimnasios por ubicación
-- ⏳ Autenticación de usuarios
-- ⏳ Panel de administración
+GymFlow permite a los miembros ver el aforo actual de sus gimnasios, recibir predicciones de ocupación y acceder mediante QR. El staff operativo gestiona el acceso desde un kiosko de torniquete, y los dueños monitorizan métricas de negocio desde un dashboard dedicado.
 
 ---
 
-## 🛠️ Stack Tecnológico
+## 📋 Tabla de Contenidos
+
+- [Stack Tecnológico](#stack-tecnológico)
+- [Arquitectura](#arquitectura)
+- [Funcionalidades](#funcionalidades)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+- [Instalación y Setup](#instalación-y-setup)
+- [Variables de Entorno](#variables-de-entorno)
+- [Base de Datos](#base-de-datos)
+- [API Reference](#api-reference)
+- [Roles y Permisos](#roles-y-permisos)
+- [Roadmap](#roadmap)
+
+---
+
+## Stack Tecnológico
 
 ### Backend
-- **Framework:** NestJS 11
-- **Lenguaje:** TypeScript 5.7
-- **ORM:** Prisma 5.22
-- **Base de Datos:** PostgreSQL 15 (via pgAdmin local)
-- **Validación:** class-validator + class-transformer
-- **WebSockets:** Socket.io (pendiente)
+| Tecnología | Versión | Uso |
+|---|---|---|
+| NestJS | ^10 | Framework API REST |
+| Prisma | ^5 | ORM + migraciones |
+| PostgreSQL | 15 | Base de datos principal |
+| Socket.io | ^4 | WebSockets tiempo real |
+| JWT | — | Autenticación |
+| bcrypt | — | Hash de contraseñas |
+| Docker | — | Contenedor PostgreSQL |
 
 ### Frontend
-- **Framework:** Next.js 14 (App Router)
-- **Lenguaje:** TypeScript
-- **Estilos:** Tailwind CSS
-- **UI Components:** React (nativo)
-- **HTTP Client:** Fetch API
-
-### DevOps
-- **Versionado:** Git + GitHub
-- **Containerización:** Docker Compose (Redis - no usado aún)
-- **IDE:** Visual Studio Code
+| Tecnología | Versión | Uso |
+|---|---|---|
+| Next.js | 15 | Framework React |
+| TypeScript | ^5 | Tipado estático |
+| Tailwind CSS | ^3 | Estilos |
+| Framer Motion | ^11 | Animaciones |
+| Recharts | ^2 | Gráficos de ocupación |
+| QRCode | ^1 | Generación de QR |
 
 ---
 
-## 📁 Estructura del Proyecto
+## Arquitectura
 
 ```
 gymflow-app/
-├── backend/                      # API NestJS
-│   ├── prisma/
-│   │   ├── schema.prisma        # Esquema de base de datos
-│   │   └── seed.ts              # Datos de prueba
+├── backend/          ← API NestJS (puerto 3001)
 │   ├── src/
-│   │   ├── modules/
-│   │   │   ├── prisma/          # Servicio de Prisma
-│   │   │   │   ├── prisma.service.ts
-│   │   │   │   └── prisma.module.ts
-│   │   │   └── gyms/            # Módulo de gimnasios
-│   │   │       ├── gyms.controller.ts
-│   │   │       ├── gyms.service.ts
-│   │   │       └── gyms.module.ts
-│   │   ├── main.ts              # Entry point
-│   │   └── app.module.ts        # Módulo principal
-│   ├── .env                     # Variables de entorno (NO subir a Git)
-│   ├── package.json
-│   └── tsconfig.json
+│   │   └── modules/
+│   │       ├── auth/         ← Login, JWT, validación RUT
+│   │       ├── checkins/     ← Registros entrada/salida + dashboards
+│   │       ├── gyms/         ← CRUD gyms + estadísticas predictivas
+│   │       ├── memberships/  ← Gestión membresías
+│   │       └── users/        ← Perfil usuarios
+│   └── prisma/
+│       ├── schema.prisma     ← Modelos de datos
+│       └── seed.ts           ← Datos de prueba
 │
-├── frontend/                     # App Next.js
-│   ├── src/
-│   │   └── app/
-│   │       └── page.tsx         # Página principal (lista de gyms)
-│   ├── .env.local               # Variables de entorno (NO subir a Git)
-│   ├── package.json
-│   ├── tailwind.config.ts
-│   └── next.config.js
-│
-├── docker-compose.yml           # Configuración Docker (Redis)
-└── README.md                    # Este archivo
+└── frontend/         ← App Next.js (puerto 3000)
+    └── src/
+        ├── app/
+        │   ├── page.tsx              ← Homepage con grid de gyms
+        │   ├── perfil/page.tsx       ← Login + perfil usuario
+        │   ├── registro/page.tsx     ← Registro 3 pasos
+        │   ├── gym/[gymId]/page.tsx  ← Detalle gym + gráficos
+        │   ├── torniquete/[gymId]/   ← Kiosko torniquete (STAFF/ADMIN)
+        │   └── dashboard/page.tsx   ← Dashboard Staff + Owner
+        ├── components/
+        │   ├── Navbar.tsx            ← Navegación global
+        │   └── OwnerDashboard.tsx    ← Métricas de negocio
+        └── hooks/
+            └── useRealtimeCapacity.ts ← WebSocket hook
+```
+
+### Flujo de Acceso (Torniquete)
+
+```
+Usuario (app móvil)
+    ↓ Ve aforo en tiempo real
+    ↓ Decide ir al gym
+    ↓ Va físicamente
+    ↓ Presenta QR al lector físico USB
+Torniquete (panel operativo STAFF)
+    ↓ Valida QR o RUT
+    ↓ Registra entrada/salida en BD
+    ↓ Emite evento WebSocket
+Homepage + Detalle
+    ↓ Actualiza aforo en tiempo real
 ```
 
 ---
 
-## 🗄️ Modelo de Base de Datos
+## Funcionalidades
 
-### Tablas Creadas
+### 👤 Para Miembros (USER)
+- **Homepage**: Ver gymns de su membresía con aforo en tiempo real
+- **Filtros**: Todos / Con espacio / Mi membresía
+- **Detalle gym**: Gráficos de ocupación con 3 vistas:
+  - *Hoy*: Datos reales del día
+  - *Predicción*: Real + proyección futura (algoritmo híbrido)
+  - *Semana*: Comparativa hoy vs ayer vs promedio 7 días
+- **Insights**: Mejor hora para ir, próximas 3 horas, tendencia vs ayer
+- **Perfil**: QR personal descargable, datos de membresía, días restantes
+- **Registro**: Flujo 3 pasos (datos personales → membresía → gimnasio)
+- **Control de acceso**: Solo ve gyms de su membresía activa
 
-#### **users**
+### 🧑‍💼 Para Staff (GYM_STAFF)
+- **Torniquete kiosko**: Panel físico con lector QR/RUT USB
+  - Detección de lector físico (ráfagas < 50ms entre teclas)
+  - Estado visual: éxito entrada / éxito salida / error / denegado
+  - Sonidos diferenciados por tipo de evento
+  - Lookup en tiempo real del estado del usuario
+  - Panel lateral: aforo, actividad reciente, reloj
+- **Dashboard Staff**:
+  - Aforo actual con barra animada
+  - Visitas totales del día, hora punta, tiempo promedio
+  - Gráfico de ocupación por hora
+  - Feed de actividad en tiempo real (entradas/salidas)
+  - Tabla de usuarios actualmente dentro
+  - Alertas automáticas (aforo crítico, tiempo alto)
+
+### 🏢 Para Owner/Admin (ADMIN)
+- Todo lo de Staff +
+- **Dashboard Owner**:
+  - KPIs financieros: ingresos estimados, proyección próximo mes
+  - KPIs membresías: total, activos, inactivos, churn rate, retención
+  - Gráfico de visitas diario/mensual con selector 7/30/90 días
+  - Pie chart distribución de tipos de membresía
+  - Ranking de horas más rentables
+  - Gauge de tasa de retención
+  - Top 3 días con más actividad
+  - Ingresos estimados por tipo de membresía
+
+### 🔄 Tiempo Real (WebSockets)
+- Actualización automática de aforo al registrar entrada/salida
+- Reconexión automática con backoff exponencial
+- Indicador visual de estado de conexión
+
+---
+
+## Estructura del Proyecto
+
+### Modelos de Base de Datos
+
 ```prisma
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  checkins  CheckIn[]
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String
+  name       String
+  rut        String?  @unique
+  qrCode     String?  @unique
+  role       Role     @default(USER)
+  membership Membership?
+  checkins   CheckIn[]
 }
-```
 
-#### **gyms**
-```prisma
 model Gym {
-  id          String   @id @default(uuid())
-  name        String
-  address     String
-  latitude    Float
-  longitude   Float
-  maxCapacity Int
-  description String?
-  features    String[]
-  imageUrl    String?
-  rating      Float    @default(0)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  checkins    CheckIn[]
+  id              String   @id @default(uuid())
+  name            String
+  address         String
+  latitude        Float
+  longitude       Float
+  maxCapacity     Int
+  description     String?
+  features        String[]
+  rating          Float    @default(0)
+  chain           String?
+  isActive        Boolean  @default(true)
+  checkins        CheckIn[]
+  membershipGyms  MembershipGym[]
 }
-```
 
-#### **checkins**
-```prisma
+model Membership {
+  id        String         @id @default(uuid())
+  userId    String         @unique
+  type      MembershipType
+  status    String         @default("ACTIVE")
+  startDate DateTime
+  endDate   DateTime
+  gyms      MembershipGym[]
+}
+
+model MembershipGym {
+  membershipId String
+  gymId        String
+}
+
 model CheckIn {
   id         String    @id @default(uuid())
+  userId     String
   gymId      String
-  userId     String?
   checkedIn  DateTime  @default(now())
   checkedOut DateTime?
-  gym        Gym       @relation(...)
-  user       User?     @relation(...)
 }
-```
 
-#### **Role** (enum)
-```prisma
 enum Role {
   USER
-  ADMIN
   GYM_STAFF
+  ADMIN
+}
+
+enum MembershipType {
+  BASIC
+  SMARTFIT
+  POWERFIT
+  PREMIUM
+  CUSTOM
 }
 ```
 
 ---
 
-## 🚀 Instalación y Configuración
+## Instalación y Setup
 
-### Prerrequisitos
+### Prerequisitos
+- Node.js 18+
+- Docker Desktop
+- npm o yarn
 
-- ✅ Node.js 20+ instalado
-- ✅ PostgreSQL (via pgAdmin 4)
-- ✅ Git
-- ✅ Visual Studio Code
-
-### Paso 1: Clonar el Repositorio
+### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/alexmqez12/gymflow-app.git
+git clone https://github.com/tuusuario/gymflow-app.git
 cd gymflow-app
 ```
 
-### Paso 2: Configurar Backend
+### 2. Levantar base de datos
+
+```bash
+docker run --name gymflow-postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_DB=gymflow \
+  -p 5432:5432 \
+  -d postgres:15
+```
+
+### 3. Backend
 
 ```bash
 cd backend
-
-# Instalar dependencias
 npm install
 
-# Crear archivo .env
-copy .env.example .env
+# Configurar variables de entorno
+cp .env.example .env
 
-# Editar .env con tus credenciales de PostgreSQL
-# DATABASE_URL="postgresql://gymflow_user:gymflow_password@localhost:5432/gymflow_db?schema=public"
+# Correr migraciones
+npx prisma migrate dev
 
-# Generar Prisma Client
+# Generar cliente Prisma
 npx prisma generate
-
-# Ejecutar migraciones
-npx prisma migrate dev --name init
 
 # Cargar datos de prueba
 npm run prisma:seed
@@ -190,285 +264,207 @@ npm run prisma:seed
 npm run start:dev
 ```
 
-**Backend corriendo en:** http://localhost:3001/api
+El backend estará disponible en `http://localhost:3001`
 
-### Paso 3: Configurar Frontend
+### 4. Frontend
 
 ```bash
 cd frontend
-
-# Instalar dependencias
 npm install
-
-# Crear archivo .env.local
-copy .env.example .env.local
-
-# Editar .env.local
-# NEXT_PUBLIC_API_URL=http://localhost:3001/api
-
-# Iniciar servidor
 npm run dev
 ```
 
-**Frontend corriendo en:** http://localhost:3000
+La app estará disponible en `http://localhost:3000`
 
 ---
 
-## 🔌 API Endpoints Disponibles
+## Variables de Entorno
 
-### Gimnasios
-
-| Método | Endpoint | Descripción | Respuesta |
-|--------|----------|-------------|-----------|
-| `GET` | `/api/gyms` | Listar todos los gimnasios | Array de gimnasios con aforo actual |
-| `GET` | `/api/gyms/:id` | Obtener detalle de un gimnasio | Objeto gimnasio con aforo |
-
-#### Ejemplo de Respuesta `/api/gyms`:
-
-```json
-[
-  {
-    "id": "uuid",
-    "name": "PowerGym Las Condes",
-    "address": "Av. Apoquindo 4800, Las Condes",
-    "latitude": -33.4172,
-    "longitude": -70.5476,
-    "maxCapacity": 80,
-    "description": "Gimnasio premium...",
-    "features": ["Pesas", "Cardio", "Clases Grupales", "Sauna"],
-    "imageUrl": null,
-    "rating": 4.5,
-    "isActive": true,
-    "createdAt": "2026-02-07T...",
-    "updatedAt": "2026-02-07T...",
-    "currentCapacity": 1,
-    "availableSpots": 79,
-    "occupancyPercentage": 1
-  }
-]
-```
-
----
-
-## 🔧 Scripts Disponibles
-
-### Backend
-
-```bash
-npm run start:dev       # Modo desarrollo con hot-reload
-npm run build           # Compilar para producción
-npm run start:prod      # Ejecutar build de producción
-npm run prisma:generate # Generar Prisma Client
-npm run prisma:migrate  # Crear/ejecutar migraciones
-npm run prisma:studio   # Abrir interfaz visual de BD
-npm run prisma:seed     # Cargar datos de prueba
-```
-
-### Frontend
-
-```bash
-npm run dev      # Modo desarrollo
-npm run build    # Compilar para producción
-npm run start    # Ejecutar build de producción
-npm run lint     # Ejecutar linter
-```
-
----
-
-## 🗂️ Variables de Entorno
-
-### Backend `.env`
+### Backend (`backend/.env`)
 
 ```env
-DATABASE_URL="postgresql://gymflow_user:gymflow_password@localhost:5432/gymflow_db?schema=public"
+# Base de datos
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/gymflow"
+
+# JWT
+JWT_SECRET="tu-secreto-seguro-aqui"
+JWT_EXPIRES_IN="7d"
+
+# App
 PORT=3001
-NODE_ENV=development
-CORS_ORIGIN=http://localhost:3000
 ```
 
-### Frontend `.env.local`
+### Frontend (`frontend/.env.local`)
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:3001/api
+NEXT_PUBLIC_API_URL=http://localhost:3001
 NEXT_PUBLIC_WS_URL=http://localhost:3001
 ```
 
-⚠️ **IMPORTANTE:** Estos archivos NO deben subirse a Git (están en `.gitignore`)
-
 ---
 
-## 📊 Datos de Prueba
+## Base de Datos
 
-El comando `npm run prisma:seed` carga:
+### Migrations
 
-### Usuarios
-- **Email:** admin@gymflow.com
-- **Nombre:** Admin User
-- **Rol:** ADMIN
-
-### Gimnasios (4)
-1. **PowerGym Las Condes** - Av. Apoquindo 4800 (Capacidad: 80)
-2. **FitZone Providencia** - Av. Providencia 2100 (Capacidad: 90)
-3. **SmartFit Vitacura** - Av. Vitacura 5600 (Capacidad: 100)
-4. **BodyTech Costanera** - Av. Costanera 8700 (Capacidad: 85)
-
-### Check-ins
-- 1 check-in activo en PowerGym Las Condes
-
----
-
-## 🐛 Problemas Comunes y Soluciones
-
-### Error: "Cannot connect to database"
-
-**Causa:** PostgreSQL no está corriendo o credenciales incorrectas.
-
-**Solución:**
-1. Verifica que pgAdmin esté abierto
-2. Verifica que la base de datos `gymflow_db` exista
-3. Verifica el usuario `gymflow_user` y su contraseña en `.env`
-
-### Error: "Port 3001 already in use"
-
-**Solución:**
 ```bash
-# Encuentra el proceso
-netstat -ano | findstr :3001
+# Crear nueva migración
+npx prisma migrate dev --name nombre_migracion
 
-# Mata el proceso (reemplaza PID)
-taskkill /PID <PID> /F
+# Aplicar migraciones en producción
+npx prisma migrate deploy
+
+# Ver estado de migraciones
+npx prisma migrate status
 ```
 
-### Error: "Prisma Client not generated"
+### Seed (datos de prueba)
 
-**Solución:**
 ```bash
-cd backend
-npx prisma generate
+npm run prisma:seed
 ```
 
-### Error de CORS en el frontend
+Crea los siguientes usuarios de prueba:
 
-**Solución:** Verifica que `CORS_ORIGIN` en `backend/.env` sea `http://localhost:3000`
+| Email | Password | Rol | Membresía |
+|---|---|---|---|
+| admin@gymflow.com | password123 | ADMIN | — |
+| staff@gymflow.com | password123 | GYM_STAFF | — |
+| juan@test.com | password123 | USER | SmartFit (SmartFit Vitacura) |
+| maria@test.com | password123 | USER | Basic (FitZone Providencia) |
 
----
-
-## 🏗️ Decisiones Técnicas Importantes
-
-### ¿Por qué PostgreSQL local en lugar de Docker?
-
-Durante el desarrollo encontramos problemas de autenticación con PostgreSQL en Docker desde Windows. La solución más práctica fue usar PostgreSQL local via pgAdmin, que ya estaba instalado.
-
-### ¿Por qué Prisma 5.22 y no Prisma 7?
-
-Prisma 7 (la última versión) cambió completamente la configuración y requiere archivos `prisma.config.ts`. Por estabilidad, usamos Prisma 5.22 que tiene una configuración más tradicional y documentación más completa.
-
-### ¿Por qué Next.js App Router?
-
-Next.js 14 usa el App Router por defecto, que es el futuro del framework. Aunque tiene una curva de aprendizaje, es más potente y está mejor optimizado.
+Y 4 gimnasios en Santiago:
+- PowerGym Las Condes (cap. 80)
+- FitZone Providencia (cap. 90)
+- SmartFit Vitacura (cap. 100)
+- BodyTech Costanera (cap. 85)
 
 ---
 
-## 📈 Próximos Pasos del Proyecto
+## API Reference
 
-### Corto Plazo
-1. ✅ ~~Conectar frontend con backend~~ (HECHO)
-2. ⏳ Crear módulo de check-ins en backend
-3. ⏳ Implementar WebSockets para actualizaciones en tiempo real
-4. ⏳ Crear componentes UI reutilizables
-5. ⏳ Agregar búsqueda por ubicación
+### Auth
+| Método | Endpoint | Descripción |
+|---|---|---|
+| POST | `/api/auth/login` | Login con email + password |
+| POST | `/api/auth/register` | Registro nuevo usuario |
 
-### Mediano Plazo
-6. ⏳ Sistema de autenticación (JWT)
-7. ⏳ Panel de administración para gimnasios
-8. ⏳ Gráficas de ocupación histórica
-9. ⏳ Notificaciones cuando un gym esté disponible
-10. ⏳ Sistema de reservas
+### Gyms
+| Método | Endpoint | Descripción | Auth |
+|---|---|---|---|
+| GET | `/api/gyms` | Todos los gimnasios | — |
+| GET | `/api/gyms/:id` | Detalle de un gym | — |
+| GET | `/api/gyms/for-user/:userId` | Gyms según membresía | — |
+| GET | `/api/gyms/:id/predictive` | Estadísticas predictivas | — |
 
-### Largo Plazo
-11. ⏳ App móvil (React Native)
-12. ⏳ Integración con wearables
-13. ⏳ Sistema de gamificación
-14. ⏳ Deploy a producción (Vercel + Railway/Render)
+### CheckIns
+| Método | Endpoint | Descripción | Auth |
+|---|---|---|---|
+| POST | `/api/checkins` | Registrar entrada/salida | JWT |
+| GET | `/api/checkins/active/:gymId/:identifier` | Estado actual de usuario | JWT |
+| GET | `/api/checkins/dashboard/staff/:gymId` | Dashboard operativo | JWT |
+| GET | `/api/checkins/dashboard/owner/:gymId?days=30` | Dashboard métricas negocio | JWT |
 
----
+### Memberships
+| Método | Endpoint | Descripción | Auth |
+|---|---|---|---|
+| GET | `/api/memberships/user/:userId` | Membresía de un usuario | — |
+| POST | `/api/memberships` | Crear membresía | JWT |
 
-## 🤝 Contribución
+### WebSockets (Socket.io)
 
-Este es un proyecto en desarrollo activo. Para contribuir:
+```javascript
+// Conectar
+const socket = io('http://localhost:3001');
 
-1. Fork el repositorio
-2. Crea una rama: `git checkout -b feature/nueva-funcionalidad`
-3. Commit: `git commit -m 'Add: nueva funcionalidad'`
-4. Push: `git push origin feature/nueva-funcionalidad`
-5. Abre un Pull Request
+// Unirse a sala de un gym
+socket.emit('join-gym', gymId);
 
----
-
-## 📝 Notas de Desarrollo
-
-### Estado Actual del Proyecto
-
-**Fecha:** 09 de Febrero, 2026  
-**Versión:** 0.1.0 (MVP en desarrollo)
-
-**Lo que funciona:**
-- ✅ Backend API con NestJS
-- ✅ Base de datos PostgreSQL con Prisma
-- ✅ Endpoint para listar gimnasios con aforo
-- ✅ Frontend básico con Next.js mostrando gimnasios
-- ✅ Comunicación frontend ↔ backend funcionando
-
-**Lo que falta:**
-- ❌ Check-ins/Check-outs
-- ❌ WebSockets en tiempo real
-- ❌ Autenticación
-- ❌ Búsqueda geolocalizada
-- ❌ Panel de admin
-- ❌ Tests unitarios
-- ❌ Docker funcional para desarrollo
-- ❌ Deploy a producción
-
-### Archivos Importantes Creados
-
-**Backend:**
-- `src/main.ts` - Entry point con configuración CORS
-- `src/app.module.ts` - Módulo raíz
-- `src/modules/prisma/*` - Servicio de conexión a BD
-- `src/modules/gyms/*` - Módulo de gimnasios (controller + service)
-- `prisma/schema.prisma` - Esquema de base de datos
-- `prisma/seed.ts` - Datos de prueba
-- `tsconfig.seed.json` - Config TypeScript para seed
-
-**Frontend:**
-- `src/app/page.tsx` - Página principal con lista de gimnasios
-- `tailwind.config.ts` - Configuración Tailwind
-- `next.config.js` - Configuración Next.js
+// Escuchar actualizaciones de aforo
+socket.on('capacity-update', (data) => {
+  // data: { gymId, current, max, percentage }
+});
+```
 
 ---
 
-## 📞 Contacto y Soporte
+## Roles y Permisos
 
-**Desarrollador:** Alex Márquez  
-**GitHub:** [@alexmqez12](https://github.com/alexmqez12)  
-**Email:** [Tu email aquí]
-
----
-
-## 📜 Licencia
-
-MIT License - Este proyecto es de código abierto y puede ser usado libremente.
-
----
-
-## 🙏 Agradecimientos
-
-- **NestJS** - Por el excelente framework backend
-- **Next.js** - Por hacer React tan fácil
-- **Prisma** - Por el mejor ORM de TypeScript
-- **Tailwind CSS** - Por el sistema de estilos utility-first
+| Funcionalidad | USER | GYM_STAFF | ADMIN |
+|---|:---:|:---:|:---:|
+| Ver gyms propios | ✅ | ✅ | ✅ |
+| Ver aforo en tiempo real | ✅ | ✅ | ✅ |
+| Ver gráficos predictivos | ✅ | ✅ | ✅ |
+| Perfil + QR | ✅ | ✅ | ✅ |
+| Torniquete kiosko | ❌ | ✅ | ✅ |
+| Dashboard Staff | ❌ | ✅ | ✅ |
+| Dashboard Owner | ❌ | ❌ | ✅ |
+| Ver todos los gyms | ❌ | ✅ | ✅ |
 
 ---
 
-**Última actualización:** 09 de Febrero, 2026  
-**Mantenido por:** Alex Márquez
+## Roadmap
+
+### ✅ v0.5.0 — Completado
+- [x] Sistema de membresías con control de acceso por cadena
+- [x] Autenticación JWT con persistencia localStorage
+- [x] Registro en 3 pasos con validación RUT
+- [x] Homepage con aforo en tiempo real y filtros
+- [x] Detalle gym con gráficos predictivos (3 tabs)
+- [x] Perfil usuario con QR descargable
+- [x] Torniquete kiosko con simulación lector físico USB
+- [x] Dashboard Staff operativo con feed tiempo real
+- [x] Dashboard Owner con métricas de negocio
+- [x] WebSockets para actualizaciones en tiempo real
+- [x] Control de acceso: usuarios solo ven sus gyms
+- [x] Navbar con navegación por roles
+
+### 🔄 v0.6.0 — En progreso
+- [ ] Script de simulación de tráfico para datos de prueba
+- [ ] Precios reales de membresías en BD (campo `price` en `Membership`)
+- [ ] Registro de membresía desde el flujo de registro
+
+### 📋 v0.7.0 — Planificado
+- [ ] Webhooks para integración con torniquetes físicos reales
+- [ ] Gestión de membresías desde panel ADMIN
+- [ ] Exportación de reportes CSV/PDF desde Dashboard Owner
+- [ ] Configuración de capacidad máxima por gym desde ADMIN
+
+### 🚀 v1.0.0 — Futuro (SaaS)
+- [ ] Multi-tenant: cada cadena es un tenant independiente
+- [ ] Planes de suscripción con facturación
+- [ ] App móvil nativa (React Native)
+- [ ] Integración con torniquetes físicos (API webhooks)
+- [ ] Notificaciones push cuando el gym tiene bajo aforo
+
+---
+
+## Contribuir
+
+```bash
+# Crear rama de feature
+git checkout -b feat/nombre-feature
+
+# Commit con convención
+git commit -m "feat: descripción del cambio"
+
+# Push y PR
+git push origin feat/nombre-feature
+```
+
+### Convención de commits
+
+| Prefijo | Uso |
+|---|---|
+| `feat:` | Nueva funcionalidad |
+| `fix:` | Corrección de bug |
+| `refactor:` | Refactorización sin cambio funcional |
+| `docs:` | Documentación |
+| `style:` | Cambios de estilo/formato |
+| `chore:` | Mantenimiento, dependencias |
+
+---
+
+## Licencia
+
+MIT © 2026 GymFlow

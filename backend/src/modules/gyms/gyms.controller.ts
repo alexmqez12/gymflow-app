@@ -14,4 +14,19 @@ export class GymsController {
   findOne(@Param('id') id: string) {
     return this.gymsService.findOne(id);
   }
+
+  @Get(':id/hourly-stats')
+  getHourlyStats(@Param('id') id: string) {
+    return this.gymsService.getHourlyStats(id);
+  }
+
+  @Get(':id/predictive')
+  getPredictiveStats(@Param('id') id: string) {
+    return this.gymsService.getPredictiveStats(id);
+  }
+
+  @Get('for-user/:userId')
+  getGymsForUser(@Param('userId') userId: string) {
+    return this.gymsService.getGymsForUser(userId);
+  }
 }

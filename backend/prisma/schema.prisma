@@ -7,17 +7,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  USER
+  ADMIN
+  GYM_STAFF
+}
+
+enum MembershipType {
+  BASIC      // Acceso a gimnasios básicos
+  PREMIUM    // Acceso a todos los gimnasios
+  SMARTFIT   // Solo SmartFit
+  POWERFIT   // Solo PowerGym
+  CUSTOM     // Personalizada
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
   password  String
   name      String
+  rut       String?  @unique
+  qrCode    String?  @unique
   role      Role     @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
-  checkins  CheckIn[]
-  
+
+  checkins   CheckIn[]
+  membership Membership?
+
   @@map("users")
 }
 
@@ -33,12 +56,42 @@ model Gym {
   imageUrl    String?
   rating      Float    @default(0)
   isActive    Boolean  @default(true)
+  chain       String?  // "SmartFit", "PowerGym", etc.
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
-  checkins    CheckIn[]
-  
+
+  checkins            CheckIn[]
+  membershipGyms      MembershipGym[]
+
   @@map("gyms")
+}
+
+model Membership {
+  id        String           @id @default(uuid())
+  userId    String           @unique
+  type      MembershipType
+  status    MembershipStatus @default(ACTIVE)
+  startDate DateTime         @default(now())
+  endDate   DateTime
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user  User            @relation(fields: [userId], references: [id])
+  gyms  MembershipGym[]
+
+  @@map("memberships")
+}
+
+model MembershipGym {
+  id           String @id @default(uuid())
+  membershipId String
+  gymId        String
+
+  membership Membership @relation(fields: [membershipId], references: [id])
+  gym        Gym        @relation(fields: [gymId], references: [id])
+
+  @@unique([membershipId, gymId])
+  @@map("membership_gyms")
 }
 
 model CheckIn {
@@ -47,17 +100,10 @@ model CheckIn {
   userId     String?
   checkedIn  DateTime  @default(now())
   checkedOut DateTime?
-  
-  gym        Gym       @relation(fields: [gymId], references: [id], onDelete: Cascade)
-  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  @@index([gymId, checkedOut])
-  @@index([userId])
-  @@map("checkins")
-}
+  eventId    String?   @unique
 
-enum Role {
-  USER
-  ADMIN
-  GYM_STAFF
+  gym  Gym   @relation(fields: [gymId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
+
+  @@map("checkins")
 }

@@ -1,4 +1,4 @@
-import { IsUUID, IsOptional } from 'class-validator';
+import { IsUUID, IsOptional, IsString } from 'class-validator';
 
 export class CreateCheckInDto {
   @IsUUID()
@@ -7,4 +7,16 @@ export class CreateCheckInDto {
   @IsUUID()
   @IsOptional()
   userId?: string;
+
+  @IsString()
+  @IsOptional()
+  rut?: string;
+
+  @IsString()
+  @IsOptional()
+  qrCode?: string;
+
+  @IsString()
+  @IsOptional()
+  eventId?: string;
 }
